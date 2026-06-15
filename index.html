@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Movie Recommender</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d0f;
+      --surface:   #16161a;
+      --card:      #1e1e24;
+      --border:    rgba(255,255,255,0.08);
+      --accent:    #e8b84b;
+      --accent2:   #c0392b;
+      --text:      #f0eff4;
+      --muted:     #888894;
+      --radius:    12px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(13,13,15,0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+    header .logo-icon { font-size: 24px; }
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+    header h1 span { color: var(--accent); }
+    header .api-badge {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: monospace;
+    }
+    #api-status { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #e74c3c; margin-right: 5px; transition: background .3s; }
+    #api-status.ok { background: #2ecc71; }
+
+    /* ── SEARCH ── */
+    .search-wrap {
+      max-width: 720px;
+      margin: 52px auto 0;
+      padding: 0 20px;
+      text-align: center;
+    }
+    .search-wrap h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 38px;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    .search-wrap h2 em { font-style: italic; color: var(--accent); }
+    .search-wrap p { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+
+    .search-box {
+      position: relative;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 16px 52px 16px 20px;
+      border-radius: 50px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 16px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .search-box input:focus { border-color: var(--accent); }
+    .search-box input::placeholder { color: var(--muted); }
+    .search-box .search-icon {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 20px;
+      pointer-events: none;
+    }
+
+    /* dropdown */
+    #suggestions {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      z-index: 200;
+      display: none;
+    }
+    #suggestions li {
+      list-style: none;
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text);
+      transition: background .15s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #suggestions li:hover { background: rgba(232,184,75,0.1); }
+    #suggestions li .tag {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.05);
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 48px 20px 80px;
+    }
+
+    /* ── SELECTED MOVIE PANEL ── */
+    #movie-detail {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 40px;
+      gap: 28px;
+      align-items: flex-start;
+    }
+    #movie-detail.show { display: flex; }
+    #movie-detail img {
+      width: 130px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+    #movie-detail .info h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      margin-bottom: 6px;
+    }
+    #movie-detail .meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    #movie-detail .meta span {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+    }
+    #movie-detail .meta span.genre { color: var(--accent); background: rgba(232,184,75,0.1); }
+    #movie-detail .overview { font-size: 14px; color: var(--muted); line-height: 1.7; }
+    #movie-detail .close-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 20px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    #movie-detail .close-btn:hover { color: var(--text); }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── MOVIE GRID ── */
+    .movie-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 20px;
+    }
+    .movie-card {
+      cursor: pointer;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--card);
+      border: 1px solid var(--border);
+      transition: transform .2s, border-color .2s;
+    }
+    .movie-card:hover { transform: translateY(-4px); border-color: var(--accent); }
+    .movie-card .poster {
+      width: 100%;
+      aspect-ratio: 2/3;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+    }
+    .movie-card .poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .movie-card .poster .no-poster {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .movie-card .poster .no-poster span { font-size: 36px; }
+    .movie-card .card-body { padding: 12px; }
+    .movie-card .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .movie-card .card-year { font-size: 11px; color: var(--muted); }
+    .movie-card .score {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    /* ── LOADING / EMPTY ── */
+    .state-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .state-msg .icon { font-size: 48px; margin-bottom: 12px; }
+    .state-msg p { font-size: 15px; }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--card) 50%, var(--surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+      border-radius: var(--radius);
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── ERROR TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #c0392b;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-size: 14px;
+      z-index: 999;
+      transition: transform .3s;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 28px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; }
+      .search-wrap { margin-top: 32px; }
+      .search-wrap h2 { font-size: 26px; }
+      #movie-detail { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="logo-icon">🎬</span>
+    <h1>Movie <span>Recommender</span></h1>
+    <div class="api-badge"><span id="api-status"></span><span id="api-url-display">api not connected</span></div>
+  </header>
+
+  <div class="search-wrap">
+    <h2>Find your next <em>favourite</em> film</h2>
+    <p>Type a title → pick from suggestions → get recommendations powered by TF-IDF</p>
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="Type: avenger, batman, love…" autocomplete="off"/>
+      <span class="search-icon">🔍</span>
+      <ul id="suggestions"></ul>
+    </div>
+  </div>
+
+  <main>
+    <!-- selected movie detail -->
+    <div id="movie-detail">
+      <img id="detail-poster" src="" alt="poster"/>
+      <div class="info">
+        <h3 id="detail-title"></h3>
+        <div class="meta" id="detail-meta"></div>
+        <p class="overview" id="detail-overview"></p>
+      </div>
+      <button class="close-btn" onclick="closeDetail()">✕</button>
+    </div>
+
+    <!-- recommendations section -->
+    <div id="reco-section" style="display:none">
+      <div class="section-label">✦ Recommendations</div>
+      <div class="movie-grid" id="reco-grid"></div>
+    </div>
+
+    <!-- popular / home feed -->
+    <div id="home-section">
+      <div class="section-label">🏠 Popular right now</div>
+      <div class="movie-grid" id="popular-grid">
+        <!-- skeleton placeholders -->
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+        <div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Built with FastAPI + TF-IDF · <a href="https://github.com/YOUR_USERNAME/YOUR_REPO" id="gh-link" target="_blank">View on GitHub</a>
+  </footer>
+
+  <div id="toast"></div>
+
+<script>
+  // ─────────────────────────────────────────────
+  //  CONFIG  👇 Change this to your FastAPI URL
+  // ─────────────────────────────────────────────
+  const API_BASE = "https://YOUR-FASTAPI-URL.com";
+  // Examples:
+  //   Render:     "https://movie-rec.onrender.com"
+  //   Railway:    "https://movie-rec.up.railway.app"
+  //   EC2:        "http://your-ip:8000"
+  //   Local dev:  "http://localhost:8000"
+  // ─────────────────────────────────────────────
+
+  const searchInput   = document.getElementById('search-input');
+  const suggestionBox = document.getElementById('suggestions');
+  const popularGrid   = document.getElementById('popular-grid');
+  const recoSection   = document.getElementById('reco-section');
+  const recoGrid      = document.getElementById('reco-grid');
+  const homeSection   = document.getElementById('home-section');
+  const apiStatus     = document.getElementById('api-status');
+  const apiDisplay    = document.getElementById('api-url-display');
+  const toast         = document.getElementById('toast');
+
+  let debounceTimer;
+
+  // ── ping API health ──
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        apiStatus.classList.add('ok');
+        apiDisplay.textContent = new URL(API_BASE).hostname;
+      } else throw new Error();
+    } catch {
+      apiStatus.classList.remove('ok');
+      apiDisplay.textContent = 'api not connected';
+    }
+  }
+
+  // ── load popular movies ──
+  async function loadPopular() {
+    try {
+      const res  = await fetch(`${API_BASE}/popular`);
+      const data = await res.json();
+      // expects: { movies: [{id, title, year, poster_url, vote_average}] }
+      renderGrid(popularGrid, data.movies || data);
+    } catch {
+      popularGrid.innerHTML = `
+        <div class="state-msg" style="grid-column:1/-1">
+          <div class="icon">📡</div>
+          <p>Could not load popular movies.<br/>Make sure your FastAPI is running at <code>${API_BASE}</code></p>
+        </div>`;
+    }
+  }
+
+  // ── autocomplete suggestions ──
+  searchInput.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = searchInput.value.trim();
+    if (q.length < 2) { hideSuggestions(); return; }
+    debounceTimer = setTimeout(() => fetchSuggestions(q), 250);
+  });
+
+  async function fetchSuggestions(q) {
+    try {
+      const res  = await fetch(`${API_BASE}/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      // expects: { results: [{id, title, year, genre}] }
+      showSuggestions(data.results || data);
+    } catch {
+      hideSuggestions();
+    }
+  }
+
+  function showSuggestions(items) {
+    if (!items.length) { hideSuggestions(); return; }
+    suggestionBox.innerHTML = items.slice(0, 8).map(m => `
+      <li onclick="selectMovie(${JSON.stringify(m).replace(/"/g,'&quot;')})">
+        🎬 ${m.title}
+        <span class="tag">${m.year || ''}</span>
+      </li>`).join('');
+    suggestionBox.style.display = 'block';
+  }
+
+  function hideSuggestions() { suggestionBox.style.display = 'none'; }
+
+  document.addEventListener('click', e => {
+    if (!searchInput.contains(e.target)) hideSuggestions();
+  });
+
+  // ── select a movie → show detail + recommendations ──
+  async function selectMovie(movie) {
+    hideSuggestions();
+    searchInput.value = movie.title;
+    showDetail(movie);
+    await loadRecommendations(movie.id || movie.title);
+  }
+
+  function showDetail(m) {
+    document.getElementById('detail-title').textContent   = m.title;
+    document.getElementById('detail-overview').textContent = m.overview || 'No description available.';
+    const poster = document.getElementById('detail-poster');
+    if (m.poster_url) { poster.src = m.poster_url; poster.style.display = 'block'; }
+    else poster.style.display = 'none';
+
+    const meta = document.getElementById('detail-meta');
+    meta.innerHTML = [
+      m.year     && `<span>${m.year}</span>`,
+      m.genre    && `<span class="genre">${m.genre}</span>`,
+      m.runtime  && `<span>${m.runtime} min</span>`,
+      m.rating   && `<span>⭐ ${m.rating}</span>`,
+    ].filter(Boolean).join('');
+
+    document.getElementById('movie-detail').classList.add('show');
+  }
+
+  function closeDetail() {
+    document.getElementById('movie-detail').classList.remove('show');
+    recoSection.style.display = 'none';
+    homeSection.style.display = 'block';
+    searchInput.value = '';
+  }
+
+  // ── fetch & render recommendations ──
+  async function loadRecommendations(movieId) {
+    homeSection.style.display = 'none';
+    recoSection.style.display = 'block';
+    recoGrid.innerHTML = Array(8).fill(
+      '<div class="skeleton" style="aspect-ratio:2/3;border-radius:12px"></div>'
+    ).join('');
+
+    try {
+      const res  = await fetch(`${API_BASE}/recommend?id=${encodeURIComponent(movieId)}`);
+      const data = await res.json();
+      // expects: { recommendations: [{id, title, year, poster_url, vote_average, genre}] }
+      const movies = data.recommendations || data;
+      if (!movies.length) throw new Error('empty');
+      renderGrid(recoGrid, movies);
+    } catch {
+      recoGrid.innerHTML = `
+        <div class="state-msg" style="grid-column:1/-1">
+          <div class="icon">🤖</div>
+          <p>Could not fetch recommendations. Check your <code>/recommend</code> endpoint.</p>
+        </div>`;
+    }
+  }
+
+  // ── render movie cards ──
+  function renderGrid(container, movies) {
+    container.innerHTML = movies.map(m => `
+      <div class="movie-card" onclick="selectMovie(${JSON.stringify(m).replace(/"/g,'&quot;')})">
+        <div class="poster">
+          ${m.poster_url
+            ? `<img src="${m.poster_url}" alt="${m.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=no-poster><span>🎬</span><p>No poster</p></div>'">`
+            : `<div class="no-poster"><span>🎬</span><p>No poster</p></div>`}
+        </div>
+        <div class="card-body">
+          <div class="card-title">${m.title}</div>
+          <div class="card-year">${m.year || ''}</div>
+          ${m.vote_average ? `<div class="score">★ ${Number(m.vote_average).toFixed(1)}</div>` : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  // ── init ──
+  checkHealth();
+  loadPopular();
+</script>
+</body>
+</html>
